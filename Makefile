@@ -11,6 +11,7 @@ vet:
 	go vet ./...
 
 bin/coverage.out: $(wildcard **/*.go *.go)
+	mkdir -p bin
 	go test -coverprofile=bin/coverage.out
 
 bin/coverage.html: bin/coverage.out
@@ -25,4 +26,4 @@ bin/doorman-arm64:
 	CGO_ENABLED=0 GOARCH=arm64 GOOS=linux go build -a -tags '-w -extldflags "-static"' -o bin/doorman-arm64 main.go
 
 bin/doorman.exe:
-	CGO_ENABLED=0 GOOS=windows go build -a -tags '-w -extldflags "-static"' -o bin/doorman main.go
+	CGO_ENABLED=0 GOOS=windows go build -a -tags '-w -extldflags "-static"' -o bin/doorman.exe main.go
