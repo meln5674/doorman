@@ -1,0 +1,67 @@
+# Omit to load kubernetes the default way, (i.e. how kubectl does)
+# kubernetes: []
+nodePools:
+- name: worker
+  tcpPorts: [80, 443]
+  addressType: InternalIP
+  nodeSelectors:
+  - labels:
+      matchExpressions:
+      - key: node-role.kubernetes.io/worker
+        values: ["true", "yes", "worker"]
+- name: controlplane
+  tcpPorts: [6443]
+  addressType: InternalIP
+  nodeSelectors:
+  - labels:
+      matchExpressions:
+      - key: node-role.kubernetes.io/worker
+        values: ["true", "yes", "worker"]
+
+templates:
+- path: /etc/nginx/nginx.conf
+  engine: gotpl
+  template: |-
+    daemon            off;
+    worker_processes  2;
+    user              www-data;
+
+    events {
+        use           epoll;
+        worker_connections  128;
+    }
+
+    error_log         logs/error.log info;
+    stream {
+        {{- range $pool := .tcp }}
+        upstream doorman_tcp_{{ $pool.port }} {
+            least_conn;
+            {{- range $address := $pool.addresses }}
+            server {{ $address }}:{{ $pool.port }};
+            {{- end }}
+        }
+
+        server {
+            listen {{ $pool.port }};
+            proxy_pass upstream doorman_tcp_{{ $pool.port }};
+            proxy_timeout 3s;
+            proxy_connect_timeout 1s;
+        }
+        {{- end }}
+        
+        {{- range $pool := .udp }}
+        upstream doorman_udp_{{ $pool.port }} {
+            least_conn;
+            {{- range $address := $pool.addresses }}
+            server {{ $address }}:{{ $pool.port }};
+            {{- end }}
+        }
+        
+        server {
+            listen {{ $pool.port }};
+            proxy_pass upstream doorman_tcp_{{ $pool.port }};
+        }
+
+        {{- end }}
+    }
+ 

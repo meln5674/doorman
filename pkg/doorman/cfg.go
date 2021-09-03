@@ -10,6 +10,7 @@ import (
 type ConfigFile struct {
 	Kubernetes *KubernetesConfigFile `json:"kubernetes"`
 	Templates  []Template            `json:"templates"`
+	NodePools  []NodePoolConfigFile  `json:"nodePools"`
 	Health     *HealthConfigFile     `json:"health"`
 	Metrics    *MetricsConfigFile    `json:"metrics"`
 }
@@ -35,7 +36,7 @@ type NodePoolConfigFile struct {
 	Name          string     `json:"name"`
 	TCPPorts      []int      `json:"tcpPorts"`
 	UDPPorts      []int      `json:"udpPorts"`
-	NodeSelectors []Selector `json:"nodeSelector"`
+	NodeSelectors []Selector `json:"nodeSelectors"`
 	AddressType   corev1.NodeAddressType
 }
 
