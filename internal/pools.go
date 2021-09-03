@@ -6,6 +6,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	corev1api "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	public "github.com/meln5674/doorman/pkg/doorman"
 )
 
 type NodePoolDescription struct {
@@ -14,6 +16,23 @@ type NodePoolDescription struct {
 	udpPorts    []int
 	selectors   []Selector
 	addressType corev1.NodeAddressType
+}
+
+func (n *NodePoolDescription) FromConfig(cfg *public.NodePoolConfigFile) error {
+	n.name = cfg.Name
+	copy(n.tcpPorts, cfg.TCPPorts)
+	copy(n.udpPorts, cfg.UDPPorts)
+	n.selectors = make([]Selector, len(cfg.NodeSelectors))
+	for i, selector := range cfg.NodeSelectors {
+		if selector.Labels != nil {
+			n.selectors[i].labelSelector = metav1.FormatLabelSelector(selector.Labels)
+		}
+		if selector.Fields != nil {
+			n.selectors[i].fieldSelector = public.FieldSelectorsAsString(*selector.Fields)
+		}
+	}
+	n.addressType = cfg.AddressType
+	return nil
 }
 
 type Selector struct {
