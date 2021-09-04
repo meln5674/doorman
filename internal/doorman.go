@@ -83,7 +83,8 @@ func (d *Doorman) FromConfig(cfg *public.ConfigFile) error {
 	for _ /*, template :*/ = range cfg.Templates {
 		// TODO: populate d.templates
 	}
-	// TODO: Create default action which tries to restart nginx
+	d.actions = make([]Action, 1)
+	d.actions[0] = &BlindNginxRestartAction{}
 	if cfg.Health != nil {
 		// TODO: set up http health endpoint handler
 	}
@@ -197,7 +198,7 @@ func (d *Doorman) Run(ctx context.Context, stop <-chan struct{}) error {
 			}
 		}
 		for _, action := range d.actions {
-			err := action.Do()
+			err := action.Do(ctx)
 			if err != nil {
 				// TODO: Handle error
 			}
@@ -217,5 +218,5 @@ type Templater interface {
 }
 
 type Action interface {
-	Do() error
+	Do(context.Context) error
 }

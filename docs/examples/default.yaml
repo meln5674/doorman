@@ -24,7 +24,8 @@ templates:
   template: |-
     daemon            off;
     worker_processes  2;
-    user              www-data;
+    user              nginx;
+    pid /var/run/nginx.conf
 
     events {
         use           epoll;
