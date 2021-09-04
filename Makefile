@@ -1,6 +1,6 @@
-.PHONY: all fmt vet test clean
+.PHONY: all fmt vet test integration-test clean
 
-all: fmt vet bin/coverage.html test bin/doorman bin/doorman-arm64 bin/doorman.exe
+all: fmt vet bin/coverage.html test bin/doorman bin/doorman-arm64 bin/doorman.exe integration-test
 
 clean:
 	rm -rf bin/
@@ -28,3 +28,6 @@ bin/doorman-arm64: $(wildcard **/*.go *.go)
 
 bin/doorman.exe: $(wildcard **/*.go *.go)
 	CGO_ENABLED=0 GOOS=windows go build -a -tags '-w -extldflags "-static"' -o bin/doorman.exe main.go
+
+integration-test: bin/doorman hack/integration-test/run.sh hack/integration-test/Dockerfile hack/integration-test/cluster-issuer.yaml hack/integration-test/doorman.yaml
+	hack/integration-test/run.sh

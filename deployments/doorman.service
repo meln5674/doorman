@@ -7,7 +7,7 @@ After=nginx.service
 [Service]
 
 Type=simple
-User=nginx
+User=www-data
 WorkingDirectory=/etc/nginx/
 ExecStart=/usr/local/bin/doorman
 Restart=on-failure

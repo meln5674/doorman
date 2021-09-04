@@ -1,0 +1,82 @@
+# Omit to load kubernetes the default way, (i.e. how kubectl does)
+# kubernetes: []
+nodePools:
+- name: worker
+  tcpPorts:
+  - src: 80
+    dest: 8080 # Prevent conflict in kind
+  - src: 443
+    dest: 8443 # Prevent conflict in kind
+  addressType: InternalIP
+  nodeSelectors:
+  - labels:
+      matchExpressions:
+      - key: node-role.kubernetes.io/worker
+        operator: in
+        values: ["true", "yes", "worker", ""]
+- name: control-plane
+  tcpPorts:
+  - src: 7443
+    dest: 6443 # Prevent conflict in kind
+  addressType: InternalIP
+  nodeSelectors:
+  - labels:
+      matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: in
+        values: ["true", "yes", "control-plane", ""]
+  - labels:
+      matchExpressions:
+      - key: node-role.kubernetes.io/master
+        operator: in
+        values: ["true", "yes", "master", ""]
+
+
+templates:
+- path: /etc/nginx/nginx.conf
+  engine: gotpl
+  template: |-
+    daemon            off;
+    worker_processes  2;
+    user              www-data;
+    pid /run/nginx.conf
+
+    events {
+        use           epoll;
+        worker_connections  128;
+    }
+
+    error_log         logs/error.log info;
+    stream {
+        {{- range $pool := .tcp }}
+        upstream doorman_tcp_{{ $pool.srcPort }} {
+            least_conn;
+            {{- range $address := $pool.addresses }}
+            server {{ $address }}:{{ $pool.destPort }};
+            {{- end }}
+        }
+
+        server {
+            listen {{ $pool.srcPort }};
+            proxy_pass upstream doorman_tcp_{{ $pool.srcPort }};
+            proxy_timeout 3s;
+            proxy_connect_timeout 1s;
+        }
+        {{- end }}
+        
+        {{- range $pool := .udp }}
+        upstream doorman_udp_{{ $pool.srcPort }} {
+            least_conn;
+            {{- range $address := $pool.addresses }}
+            server {{ $address }}:{{ $pool.destPort }};
+            {{- end }}
+        }
+        
+        server {
+            listen {{ $pool.srcPort }};
+            proxy_pass upstream doorman_tcp_{{ $pool.srcPort }};
+        }
+
+        {{- end }}
+    }
+ 
