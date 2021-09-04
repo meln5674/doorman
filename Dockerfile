@@ -7,4 +7,6 @@ ARG ARCH=""
 
 COPY bin/doorman${ARCH} /doorman
 
+ENV HOME=/var/www
+
 ENTRYPOINT ["/doorman"]

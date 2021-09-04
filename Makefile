@@ -1,4 +1,6 @@
-.PHONY: all fmt vet test integration-test clean
+.PHONY: all fmt vet test integration-test clean install-systemd install-docker uninstall-systemd uninstall-docker
+
+TIMESTAMP := $(shell date +%s)
 
 all: fmt vet bin/coverage.html test bin/doorman bin/doorman-arm64 bin/doorman.exe integration-test
 
@@ -31,3 +33,38 @@ bin/doorman.exe: $(wildcard **/*.go *.go)
 
 integration-test: bin/doorman hack/integration-test/run.sh hack/integration-test/Dockerfile hack/integration-test/cluster-issuer.yaml hack/integration-test/doorman.yaml
 	hack/integration-test/run.sh
+
+install-systemd: bin/doorman
+	cp bin/doorman /usr/local/bin/doorman
+	if [ ! -e /etc/nginx/doorman.yaml ]; then \
+		cp docs/examples/default.yaml /etc/nginx/doorman.yaml ; \
+		chown www-data /etc/nginx/doorman.yaml ; \
+	fi
+	cp deployments/doorman.service /etc/systemd/system/doorman.service
+	ln -s /etc/systemd/system/doorman.service /etc/systemd/system/multi-user.target.wants/
+	systemctl daemon-reload
+	systemctl start doorman
+uninstall-systemd:
+	systemctl stop doorman
+	systemctl disable doorman
+	rm /etc/systemd/system/doorman.service
+install-docker: bin/doorman
+	docker build --tag=doorman:local-$(TIMESTAMP) .
+	if [ ! -e /etc/nginx/doorman.yaml ]; then \
+		cp docs/examples/default.yaml /etc/nginx/doorman.yaml ; \
+		chown www-data /etc/nginx/doorman.yaml ; \
+	fi
+	docker run \
+		--detach \
+		--name=doorman \
+		--restart=always \
+		--mount src=/etc/nginx/,dst=/etc/nginx/,type=bind \
+		--mount src=/var/www/.kube/config,dst=/var/www/.kube/config,type=bind \
+		--mount src=/var/run/docker.sock,dst=/var/run/docker.sock,type=bind \
+		doorman:local-$(TIMESTAMP)
+uninstall-docker:
+	docker stop doorman
+	docker rm doorman
+
+todo:
+	grep --exclude=bin/ -R TODO: .
