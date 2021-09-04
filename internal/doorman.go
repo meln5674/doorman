@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"k8s.io/apimachinery/pkg/watch"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"os"
@@ -12,6 +13,12 @@ import (
 
 	public "github.com/meln5674/doorman/pkg/doorman"
 )
+
+var TemplateFactories map[string]TemplateFactory = make(map[string]TemplateFactory)
+
+type TemplateFactory interface {
+	Parse(template string, path string) (Templater, error)
+}
 
 // Doorman is the data parsed from a ConfigFile
 type Doorman struct {
@@ -80,8 +87,17 @@ func (d *Doorman) FromConfig(cfg *public.ConfigFile) error {
 		}
 		d.kubernetesAPIs[0] = client.CoreV1().Nodes()
 	}
-	for _ /*, template :*/ = range cfg.Templates {
-		// TODO: populate d.templates
+	d.templates = make([]Templater, 0, len(cfg.Templates))
+	for _, template := range cfg.Templates {
+		factory, ok := TemplateFactories[template.Engine]
+		if !ok {
+			return fmt.Errorf("Unrecognized template engine: %s", template.Engine)
+		}
+		tpl, err := factory.Parse(template.Template, template.Path)
+		if err != nil {
+			return err
+		}
+		d.templates = append(d.templates, tpl)
 	}
 	d.actions = make([]Action, 1)
 	d.actions[0] = &BlindNginxRestartAction{}
