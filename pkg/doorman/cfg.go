@@ -31,12 +31,18 @@ type KubernetesConfigFile struct {
 	Contexts        []string `json:"contexts"`
 }
 
+// PortMapping is a mapping from a port on one host to a port on another. If dest is absent, the source is assumed to be the dest.
+type PortMapping struct {
+	Source int  `json:"src"`
+	Dest   *int `json:"dest"`
+}
+
 // NodePoolConfigFile is the node pool section of the config field. For a node to be part of the pool, it must match one or more of the elements of the selector array.
 type NodePoolConfigFile struct {
-	Name          string     `json:"name"`
-	TCPPorts      []int      `json:"tcpPorts"`
-	UDPPorts      []int      `json:"udpPorts"`
-	NodeSelectors []Selector `json:"nodeSelectors"`
+	Name          string        `json:"name"`
+	TCPPorts      []PortMapping `json:"tcpPorts"`
+	UDPPorts      []PortMapping `json:"udpPorts"`
+	NodeSelectors []Selector    `json:"nodeSelectors"`
 	AddressType   corev1.NodeAddressType
 }
 

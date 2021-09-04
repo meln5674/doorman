@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"os"
+	"path"
 
 	"k8s.io/client-go/kubernetes"
 	k8sconfig "k8s.io/client-go/tools/clientcmd"
@@ -73,9 +74,16 @@ func (d *Doorman) FromConfig(cfg *public.ConfigFile) error {
 			d.kubernetesAPIs = append(d.kubernetesAPIs, client.CoreV1().Nodes())
 		}
 		// TODO: validate no contexts are present multiple times
-		// TODO: populate d.kubernetesAPIs from contexts within all loaded kubeconfigs
 	} else {
-		config, err := k8sconfig.BuildConfigFromFlags("", os.Getenv(k8sconfig.RecommendedConfigPathEnvVar))
+		kubeconfigPath := os.Getenv(k8sconfig.RecommendedConfigPathEnvVar)
+		if kubeconfigPath == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			kubeconfigPath = path.Join(home, k8sconfig.RecommendedHomeDir, k8sconfig.RecommendedFileName)
+		}
+		config, err := k8sconfig.BuildConfigFromFlags("", kubeconfigPath)
 		if err != nil {
 			return err
 		}
@@ -111,41 +119,47 @@ func (d *Doorman) FromConfig(cfg *public.ConfigFile) error {
 	return nil
 }
 
-type portPool map[int]map[string]struct{}
-
-func (p portPool) init(port int) {
-	p[port] = make(map[string]struct{})
+type portPool struct {
+	addresses map[string]struct{}
+	destPort  int
 }
 
-func (p portPool) add(port int, address string) (added bool) {
-	_, ok := p[port][address]
+type portPools map[int]portPool
+
+func (p portPools) init(port PortMapping) {
+	p[port.Source] = portPool{addresses: make(map[string]struct{}), destPort: port.Dest}
+}
+
+func (p portPools) add(port int, address string) (added bool) {
+	_, ok := p[port].addresses[address]
 	added = !ok
-	p[port][address] = struct{}{}
+	p[port].addresses[address] = struct{}{}
 	return
 }
 
-func (p portPool) remove(port int, address string) (removed bool) {
-	_, ok := p[port][address]
+func (p portPools) remove(port int, address string) (removed bool) {
+	_, ok := p[port].addresses[address]
 	removed = ok
-	delete(p[port], address)
+	delete(p[port].addresses, address)
 	return
 }
 
-func (p portPool) render() []PortVars {
+func (p portPools) render() []PortVars {
 	ports := make([]PortVars, len(p))
-	for port, addressSet := range p {
-		addressList := make([]string, 0, len(addressSet))
-		for address, _ := range addressSet {
+	for port, pool := range p {
+		addressList := make([]string, 0, len(pool.addresses))
+		for address, _ := range pool.addresses {
 			addressList = append(addressList, address)
 		}
-		ports = append(ports, PortVars{Port: port, Addresses: addressList})
+		ports = append(ports, PortVars{SourcePort: port, DestPort: pool.destPort, Addresses: addressList})
 	}
 	return ports
 }
 
 type PortVars struct {
-	Port      int      `json:"port"`
-	Addresses []string `json:"addresses"`
+	SourcePort int      `json:"srcPort"`
+	DestPort   int      `json:"destPort"`
+	Addresses  []string `json:"addresses"`
 }
 
 type TemplateVars struct {
@@ -154,8 +168,8 @@ type TemplateVars struct {
 }
 
 func (d *Doorman) Run(ctx context.Context, stop <-chan struct{}) error {
-	tcpPools := make(portPool)
-	udpPools := make(portPool)
+	tcpPools := make(portPools)
+	udpPools := make(portPools)
 	events := make(chan NodeEvent)
 	for _, pool := range d.nodePools {
 		go func() {
@@ -179,7 +193,7 @@ func (d *Doorman) Run(ctx context.Context, stop <-chan struct{}) error {
 	// TODO: Define and populate metrics
 
 	for event := range events {
-		var pools portPool
+		var pools portPools
 		var port int
 		if event.Port.TCP != nil {
 			pools = tcpPools

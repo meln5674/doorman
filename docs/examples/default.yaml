@@ -1,31 +1,65 @@
 # Omit to load kubernetes the default way, (i.e. how kubectl does)
-# kubernetes: []
+# kubernetes:
+#   contexts:
+#   - my-context
+
+# Define the ports to forward, and which nodes to forward to
 nodePools:
 - name: worker
-  tcpPorts: [80, 443]
+  tcpPorts:
+  - src: 80
+    # Uncomment to forward to a different port than listening on
+    # dest: 8080 
+  - src: 443
+  # Defines what will be load-balanced to
+  # Can be InternalIP, ExternalIP, or Hostname  
+  addressType: InternalIP 
+  # Nodes are matched if any of the nodeSelectors elements match. 
+  # Elements match if all expressions, labels, and fields match.
+  nodeSelectors: 
+  - labels:
+      matchExpressions:
+      - key: node-role.kubernetes.io/worker
+        operator: "in"
+        values: ["true", "yes", "worker", ""]
+      # matchLabels: # For simple exact matches
+      #   foo: bar
+  # - fields: # To match fields, such as .metadata.name
+  #    key: foo
+  #    value: bar
+  #    # Set to true to use !=
+  #    # negate: false
+- name: control-plane
+  tcpPorts:
+  - src: 6443
   addressType: InternalIP
   nodeSelectors:
   - labels:
       matchExpressions:
-      - key: node-role.kubernetes.io/worker
-        values: ["true", "yes", "worker"]
-- name: controlplane
-  tcpPorts: [6443]
-  addressType: InternalIP
-  nodeSelectors:
+      - key: node-role.kubernetes.io/control-plane
+        operator: "in"
+        values: ["true", "yes", "control-plane", ""]
   - labels:
       matchExpressions:
-      - key: node-role.kubernetes.io/worker
-        values: ["true", "yes", "worker"]
+      - key: node-role.kubernetes.io/master
+        operator: "in"
+        values: ["true", "yes", "master", ""]
 
+# Define files to be generated
 templates:
 - path: /etc/nginx/nginx.conf
+  # Currently, only "gotpl" is supported
   engine: gotpl
+  # The following fields are provided
+  # tcp[*].srcPort: Incoming (Load balancer) port for TCP balancing
+  # tcp[*].destPort: Outgoing (Node) port for TCP balancing
+  # tcp[*].addresses[*]: Addresses (Hostnames or IPs, as defined by addressType) of nodes to send TCP traffic to
+  # udp...: Same fields, but for UDP load balancing
   template: |-
     daemon            off;
     worker_processes  2;
-    user              nginx;
-    pid /var/run/nginx.conf
+    user              www-data;
+    pid /run/nginx.conf
 
     events {
         use           epoll;
@@ -35,32 +69,32 @@ templates:
     error_log         logs/error.log info;
     stream {
         {{- range $pool := .tcp }}
-        upstream doorman_tcp_{{ $pool.port }} {
+        upstream doorman_tcp_{{ $pool.srcPort }} {
             least_conn;
             {{- range $address := $pool.addresses }}
-            server {{ $address }}:{{ $pool.port }};
+            server {{ $address }}:{{ $pool.destPort }};
             {{- end }}
         }
 
         server {
-            listen {{ $pool.port }};
-            proxy_pass upstream doorman_tcp_{{ $pool.port }};
+            listen {{ $pool.srcPort }};
+            proxy_pass upstream doorman_tcp_{{ $pool.srcPort }};
             proxy_timeout 3s;
             proxy_connect_timeout 1s;
         }
         {{- end }}
         
         {{- range $pool := .udp }}
-        upstream doorman_udp_{{ $pool.port }} {
+        upstream doorman_udp_{{ $pool.srcPort }} {
             least_conn;
             {{- range $address := $pool.addresses }}
-            server {{ $address }}:{{ $pool.port }};
+            server {{ $address }}:{{ $pool.destPort }};
             {{- end }}
         }
         
         server {
-            listen {{ $pool.port }};
-            proxy_pass upstream doorman_tcp_{{ $pool.port }};
+            listen {{ $pool.srcPort }};
+            proxy_pass upstream doorman_tcp_{{ $pool.srcPort }};
         }
 
         {{- end }}

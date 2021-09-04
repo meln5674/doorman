@@ -10,18 +10,38 @@ import (
 	public "github.com/meln5674/doorman/pkg/doorman"
 )
 
+type PortMapping struct {
+	Source int
+	Dest   int
+}
+
+func (p *PortMapping) FromConfig(cfg public.PortMapping) {
+	p.Source = cfg.Source
+	if cfg.Dest == nil {
+		p.Dest = cfg.Source
+	} else {
+		p.Dest = *cfg.Dest
+	}
+}
+
 type NodePoolDescription struct {
 	name        string
-	tcpPorts    []int
-	udpPorts    []int
+	tcpPorts    []PortMapping
+	udpPorts    []PortMapping
 	selectors   []Selector
 	addressType corev1.NodeAddressType
 }
 
 func (n *NodePoolDescription) FromConfig(cfg *public.NodePoolConfigFile) error {
 	n.name = cfg.Name
-	copy(n.tcpPorts, cfg.TCPPorts)
-	copy(n.udpPorts, cfg.UDPPorts)
+	n.tcpPorts = make([]PortMapping, 0, len(cfg.TCPPorts))
+	for i, port := range cfg.TCPPorts {
+		(&n.tcpPorts[i]).FromConfig(port)
+	}
+	n.udpPorts = make([]PortMapping, 0, len(cfg.UDPPorts))
+	for i, port := range cfg.UDPPorts {
+		(&n.udpPorts[i]).FromConfig(port)
+	}
 	n.selectors = make([]Selector, len(cfg.NodeSelectors))
 	for i, selector := range cfg.NodeSelectors {
 		if selector.Labels != nil {
@@ -77,7 +97,7 @@ func (p *PoolWatcher) Run(ctx context.Context, events chan<- NodeEvent, stop <-c
 							events <- NodeEvent{
 								Type: watch.Added,
 								Port: Port{
-									TCP: &port,
+									TCP: &port.Source,
 								},
 								Address: address.Address,
 							}
@@ -86,7 +106,7 @@ func (p *PoolWatcher) Run(ctx context.Context, events chan<- NodeEvent, stop <-c
 							events <- NodeEvent{
 								Type: watch.Added,
 								Port: Port{
-									UDP: &port,
+									UDP: &port.Source,
 								},
 								Address: address.Address,
 							}
