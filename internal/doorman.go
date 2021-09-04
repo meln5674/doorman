@@ -4,6 +4,11 @@ import (
 	"context"
 	"k8s.io/apimachinery/pkg/watch"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"os"
+
+	"k8s.io/client-go/kubernetes"
+	k8sconfig "k8s.io/client-go/tools/clientcmd"
+	//k8sconfigapi "k8s.io/client-go/tools/clientcmd/api"
 
 	public "github.com/meln5674/doorman/pkg/doorman"
 )
@@ -26,13 +31,54 @@ type MetricsEndpoint struct {
 
 func (d *Doorman) FromConfig(cfg *public.ConfigFile) error {
 	if cfg.Kubernetes != nil {
-		for _ /*, path :*/ = range cfg.Kubernetes.KubeconfigPaths {
-			// TODO: load kubeconfig
+		loadingRules := k8sconfig.NewDefaultClientConfigLoadingRules()
+		loadingRules.Precedence = cfg.Kubernetes.KubeconfigPaths
+		allKubeConfigs := k8sconfig.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &k8sconfig.ConfigOverrides{})
+		allConfigs, err := allKubeConfigs.RawConfig()
+		if err != nil {
+			return err
+		}
+		var contextFilter map[string]struct{}
+		if len(cfg.Kubernetes.Contexts) == 0 {
+			d.kubernetesAPIs = make([]corev1.NodeInterface, 0, len(allConfigs.Contexts))
+			contextFilter = make(map[string]struct{}, len(allConfigs.Contexts))
+			for contextName, _ := range allConfigs.Contexts {
+				contextFilter[contextName] = struct{}{}
+			}
+		} else {
+			d.kubernetesAPIs = make([]corev1.NodeInterface, 0, len(cfg.Kubernetes.Contexts))
+			contextFilter = make(map[string]struct{}, 0)
+		}
+		for contextName, context := range allConfigs.Contexts {
+			if _, ok := contextFilter[contextName]; !ok && len(cfg.Kubernetes.Contexts) != 0 {
+				continue
+			}
+			delete(contextFilter, contextName)
+			kubeConfig := k8sconfig.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &k8sconfig.ConfigOverrides{Context: *context})
+			config, err := kubeConfig.ClientConfig()
+			if err != nil {
+				return err
+			}
+			client, err := kubernetes.NewForConfig(config)
+			if err != nil {
+				return err
+			}
+			d.kubernetesAPIs = append(d.kubernetesAPIs, client.CoreV1().Nodes())
 		}
 		// TODO: validate no contexts are present multiple times
 		// TODO: populate d.kubernetesAPIs from contexts within all loaded kubeconfigs
 	} else {
-		// TODO: populate d.kubernetesAPIs from default config loading
+		config, err := k8sconfig.BuildConfigFromFlags("", os.Getenv(k8sconfig.RecommendedConfigPathEnvVar))
+		if err != nil {
+			return err
+		}
+
+		d.kubernetesAPIs = make([]corev1.NodeInterface, 1)
+		client, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			return err
+		}
+		d.kubernetesAPIs[0] = client.CoreV1().Nodes()
 	}
 	for _ /*, template :*/ = range cfg.Templates {
 		// TODO: populate d.templates

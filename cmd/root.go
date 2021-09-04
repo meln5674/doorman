@@ -48,7 +48,10 @@ var rootCmd = &cobra.Command{
 		ctx := context.Background()
 		stop := make(chan struct{})
 		app := doorman.Doorman{}
-		app.FromConfig(&cfg)
+		if err := app.FromConfig(&cfg); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 		if err := app.Run(ctx, stop); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
