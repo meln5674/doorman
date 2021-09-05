@@ -15,6 +15,9 @@ import (
 	public "github.com/meln5674/doorman/pkg/doorman"
 )
 
+// TODO: Make some of this public so that new template factories and actions can
+// be added without modifying this directory
+
 var TemplateFactories map[string]TemplateFactory = make(map[string]TemplateFactory)
 
 type TemplateFactory interface {

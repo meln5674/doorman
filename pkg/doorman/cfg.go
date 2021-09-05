@@ -13,6 +13,7 @@ type ConfigFile struct {
 	Templates  []Template            `json:"templates"`
 	Health     *HealthConfigFile     `json:"health"`
 	Metrics    *MetricsConfigFile    `json:"metrics"`
+	// TODO: Add ability to configure the post-template action(s)
 }
 
 // HealthConfigFile is the health endpoint section of the config file
