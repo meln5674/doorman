@@ -7,76 +7,78 @@ nodePools:
     dest: 8080 # Prevent conflict in kind
   - src: 443
     dest: 8443 # Prevent conflict in kind
-  addressType: InternalIP
-  nodeSelectors:
-  - labels:
-      matchExpressions:
-      - key: node-role.kubernetes.io/worker
-        operator: in
-        values: ["true", "yes", "worker", ""]
-- name: control-plane
-  tcpPorts:
   - src: 7443
     dest: 6443 # Prevent conflict in kind
   addressType: InternalIP
-  nodeSelectors:
+  nodeSelectors: # Not a mistake, kind doesn't label the single node as a worker
   - labels:
       matchExpressions:
       - key: node-role.kubernetes.io/control-plane
-        operator: in
+        operator: In
         values: ["true", "yes", "control-plane", ""]
   - labels:
       matchExpressions:
       - key: node-role.kubernetes.io/master
-        operator: in
+        operator: In
         values: ["true", "yes", "master", ""]
-
 
 templates:
 - path: /etc/nginx/nginx.conf
   engine: gotpl
-  template: |-
-    daemon            off;
+  template: |
+    # Generated from {{ . }}
+    load_module /usr/lib/nginx/modules/ngx_stream_module.so;
+
+
     worker_processes  2;
     user              www-data;
-    pid /run/nginx.conf
 
     events {
         use           epoll;
         worker_connections  128;
     }
 
-    error_log         logs/error.log info;
+    error_log         /var/log/nginx/error.log debug;
     stream {
-        {{- range $pool := .tcp }}
-        upstream doorman_tcp_{{ $pool.srcPort }} {
+        {{- range $pool := .TCPPorts }}
+        {{- if $pool.Addresses }}
+        upstream doorman_tcp_{{ $pool.SourcePort }} {
             least_conn;
-            {{- range $address := $pool.addresses }}
-            server {{ $address }}:{{ $pool.destPort }};
+            {{- range $address := $pool.Addresses }}
+            server {{ $address }}:{{ $pool.DestPort }};
             {{- end }}
         }
 
         server {
-            listen {{ $pool.srcPort }};
-            proxy_pass upstream doorman_tcp_{{ $pool.srcPort }};
+            listen {{ $pool.SourcePort }};
+            proxy_pass doorman_tcp_{{ $pool.SourcePort }};
             proxy_timeout 3s;
             proxy_connect_timeout 1s;
         }
+        {{- else }}
+        # !!! No nodes for for tcp:{{ $pool.SourcePort }}->{{ $pool.DestPort }}
+        {{- end }}
         {{- end }}
         
-        {{- range $pool := .udp }}
-        upstream doorman_udp_{{ $pool.srcPort }} {
+        {{- range $pool := .UDPPorts }}
+        {{- if $pool.Addresses }}
+        upstream doorman_udp_{{ $pool.SourcePort }} {
             least_conn;
-            {{- range $address := $pool.addresses }}
-            server {{ $address }}:{{ $pool.destPort }};
+            {{- range $address := $pool.Addresses }}
+            server {{ $address }}:{{ $pool.DestPort }};
             {{- end }}
         }
         
         server {
-            listen {{ $pool.srcPort }};
-            proxy_pass upstream doorman_tcp_{{ $pool.srcPort }};
+            listen {{ $pool.SourcePort }};
+            proxy_pass doorman_ucp_{{ $pool.SourcePort }};
         }
 
+        {{- else }}
+        # !!! No nodes for udp:{{ $pool.SourcePort }}->{{ $pool.DestPort }}
+        {{- end }}
         {{- end }}
     }
- 
+
+                
+                

@@ -41,7 +41,10 @@ install-systemd: bin/doorman
 		chown www-data /etc/nginx/doorman.yaml ; \
 	fi
 	cp deployments/doorman.service /etc/systemd/system/doorman.service
-	ln -s /etc/systemd/system/doorman.service /etc/systemd/system/multi-user.target.wants/
+	ln -sf /etc/systemd/system/doorman.service /etc/systemd/system/multi-user.target.wants/
+	if ! grep '^%www-data ALL=/usr/bin/systemctl restart nginx$$' /etc/sudoers; then \
+		echo '^%www-data ALL=/usr/bin/systemctl restart nginx$$' >> /etc/sudoers; \
+	fi
 	systemctl daemon-reload
 	systemctl start doorman
 uninstall-systemd:

@@ -29,7 +29,23 @@ function release-exists {
 
 export KUBECONFIG=bin/integration-test.kubeconfig
 
-if [ -z "${DOORMAN_INTEGRATION_TEST_REUSE}" ]; then
+start_cluster=
+
+if [ -n "${DOORMAN_INTEGRATION_TEST_REUSE}" ]; then
+	if cluster-exists; then
+		echo 'Reusing existing test cluster'
+		cp-container bin/doorman /usr/local/bin/doorman
+		cp-container hack/integration-test/doorman.yaml /etc/nginx/doorman.yaml
+		cp-container hack/integration-test/doorman.service /etc/systemd/system/doorman.service
+		in-container systemctl daemon-reload
+		in-container systemctl restart doorman
+	else
+		echo 'No existing test cluster to re-use'
+		start_cluster=1
+	fi	
+fi
+
+if [ -z "${DOORMAN_INTEGRATION_TEST_REUSE}" ] || [ -n "${start_cluster}" ]; then
 	echo 'Building test image...'
 	build_timestamp=$(date +%s)
 	integration_test_image="${image_repo}:${build_timestamp}" 
@@ -52,26 +68,30 @@ if [ -z "${DOORMAN_INTEGRATION_TEST_REUSE}" ]; then
 	if [ -z "${DOORMAN_INTEGRATION_TEST_DEBUG}" ]; then
 		trap 'kind delete cluster --name=${cluster_name}' EXIT
 	fi
-else
-	if cluster-exists; then
-		echo 'Reusing existing test cluster'
-	else
-		echo 'No existing test cluster to re-use'
-		exit 1
-	fi
 fi
 
 echo 'Creating kubeconfig...'
 in-container mkdir -p "${container_kube_dir}"
 in-container chown www-data "${container_kube_dir}"
+in-container chown www-data "/etc/nginx/nginx.conf"
 cp-container "${KUBECONFIG}" "${container_kubeconfig}"
 in-container chown www-data "${container_kubeconfig}"
-in-container sed -Ei 's|server: https://127.0.0.1:\d+|server: https://127.0.0.1:6443|' "${container_kubeconfig}" 
+in-container sed -Ei 's|server: https://127.0.0.1:[[:digit:]]+|server: https://127.0.0.1:6443|' "${container_kubeconfig}" 
 
 echo 'Ensuring doormain is running...'
-in-container systemctl restart doorman
+in-container systemctl restart doorman || doorman_status=$?
+if [ "${doorman_status}" != '' ]; then
+	in-container journalctl -u doorman
+	exit "${doorman_status}"
+fi
+
+
 sleep 30
-in-container systemctl status doorman
+in-container systemctl restart doorman || doorman_status=$?
+if [ "${doorman_status}" != '' ]; then
+	in-container journalctl -u doorman
+	exit "${doorman_status}"
+fi
 
 echo 'Installing test apps...'
 helm repo add doorman-integration-test-jetstack https://charts.jetstack.io
@@ -95,12 +115,15 @@ helm upgrade --install ingress-nginx doorman-integration-test-ingress-nginx/ingr
 	--set controller.service.type=ClusterIP \
 	--debug \
 	--wait
+sleep 30 # ingress-nginx can become unhealth after it become healthy sometimes, best to let it settle
 helm upgrade --install nginx doorman-integration-test-bitnami/nginx \
 	--install \
 	--version "${nginx_chart_version}" \
 	--set ingress.enabled=true \
 	--set ingress.hostname=doorman.integration.test \
 	--set ingress.tls=true \
+	--set ingress.annotations.'cert-manager\.io/cluster-issuer'=selfsigned-cluster-issuer \
+	--set ingress.annotations.'kubernetes\.io/ingress\.class'=nginx \
 	--set service.type=ClusterIP \
 	--debug \
 	--wait

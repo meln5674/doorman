@@ -20,7 +20,7 @@ nodePools:
   - labels:
       matchExpressions:
       - key: node-role.kubernetes.io/worker
-        operator: "in"
+        operator: "In"
         values: ["true", "yes", "worker", ""]
       # matchLabels: # For simple exact matches
       #   foo: bar
@@ -37,12 +37,12 @@ nodePools:
   - labels:
       matchExpressions:
       - key: node-role.kubernetes.io/control-plane
-        operator: "in"
+        operator: "In"
         values: ["true", "yes", "control-plane", ""]
   - labels:
       matchExpressions:
       - key: node-role.kubernetes.io/master
-        operator: "in"
+        operator: "In"
         values: ["true", "yes", "master", ""]
 
 # Define files to be generated
@@ -59,7 +59,6 @@ templates:
     daemon            off;
     worker_processes  2;
     user              www-data;
-    pid /run/nginx.conf
 
     events {
         use           epoll;

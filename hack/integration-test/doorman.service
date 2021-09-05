@@ -1,0 +1,17 @@
+# place in /etc/systemd/system/doorman.service and install with `systemd install doorman.service`
+[Unit]
+Description=Load Balancer automation for Kubernetes via Nginx
+
+After=nginx.service
+
+[Service]
+
+Type=simple
+#User=root # There's no sudo in kind, so we can't use an unprivilleged user
+Environment=HOME=/var/www
+WorkingDirectory=/etc/nginx/
+ExecStart=/usr/local/bin/doorman
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
