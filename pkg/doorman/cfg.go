@@ -45,6 +45,7 @@ type NodePoolConfigFile struct {
 	UDPPorts      []PortMapping          `json:"udpPorts"`
 	NodeSelectors []Selector             `json:"nodeSelectors"`
 	AddressType   corev1.NodeAddressType `json:"addressType"`
+	// TODO: Add ability to specify nodeport range(s) to map to these nodes
 }
 
 // FieldSelector describes a kubernetes field selector
