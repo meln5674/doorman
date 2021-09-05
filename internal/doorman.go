@@ -95,6 +95,12 @@ func (d *Doorman) FromConfig(cfg *public.ConfigFile) error {
 		}
 		d.kubernetesAPIs[0] = client.CoreV1().Nodes()
 	}
+
+	d.nodePools = make([]NodePoolDescription, len(cfg.NodePools))
+	for i, pool := range cfg.NodePools {
+		d.nodePools[i].FromConfig(&pool)
+	}
+
 	d.templates = make([]Templater, 0, len(cfg.Templates))
 	for _, template := range cfg.Templates {
 		factory, ok := TemplateFactories[template.Engine]
@@ -171,16 +177,18 @@ func (d *Doorman) Run(ctx context.Context, stop <-chan struct{}) error {
 	tcpPools := make(portPools)
 	udpPools := make(portPools)
 	events := make(chan NodeEvent)
+	fmt.Println("Starting node pool watchers")
 	for _, pool := range d.nodePools {
-		go func() {
+		fmt.Printf("Starting watches for pool %s\n", pool.name)
+		go func(pool NodePoolDescription) {
 			err := (&PoolWatcher{
 				kubernetesAPIs: d.kubernetesAPIs,
 				pool:           pool,
 			}).Run(ctx, events, stop)
 			if err != nil {
-				// TODO: Handle error
+				fmt.Printf("Watcher failed: %v\n", err)
 			}
-		}()
+		}(pool)
 		for _, port := range pool.tcpPorts {
 			tcpPools.init(port)
 		}
@@ -192,7 +200,10 @@ func (d *Doorman) Run(ctx context.Context, stop <-chan struct{}) error {
 	// TODO: Serve metrics
 	// TODO: Define and populate metrics
 
+	fmt.Println("Listening for events from watchers...")
+
 	for event := range events {
+		fmt.Printf("Got event %#v\n", event)
 		var pools portPools
 		var port int
 		if event.Port.TCP != nil {
@@ -212,11 +223,12 @@ func (d *Doorman) Run(ctx context.Context, stop <-chan struct{}) error {
 			// Error: ???
 		}
 		if !updated {
+			fmt.Print("Event did not change state, not regenerating templates")
 			continue
 		}
 		// TODO: Implement some sort of throttling so that only one re-template
 		// happens per "chunk" of activity
-
+		fmt.Println("Regenerating templates")
 		templateVars := TemplateVars{
 			TCPPorts: tcpPools.render(),
 			UDPPorts: udpPools.render(),
@@ -224,13 +236,14 @@ func (d *Doorman) Run(ctx context.Context, stop <-chan struct{}) error {
 		for _, templater := range d.templates {
 			err := templater.Template(templateVars)
 			if err != nil {
-				// TODO: Handle error
+				fmt.Printf("Templating failed: %v\n", err)
 			}
 		}
+		fmt.Println("Performing post-template actions")
 		for _, action := range d.actions {
 			err := action.Do(ctx)
 			if err != nil {
-				// TODO: Handle error
+				fmt.Printf("Failed post-template action: %v\n", err)
 			}
 		}
 	}

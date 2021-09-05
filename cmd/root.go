@@ -19,9 +19,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/spf13/cobra"
+	"io/ioutil"
 	"os"
-
-	"github.com/spf13/viper"
+	"sigs.k8s.io/yaml"
 
 	doorman "github.com/meln5674/doorman/internal"
 	public "github.com/meln5674/doorman/pkg/doorman"
@@ -29,16 +29,24 @@ import (
 
 var (
 	cfgFile string
-	cfg     public.ConfigFile
 )
+
+// TODO: make a "validate" command which validates a config file (and optionally testing connection to k8s) without changing any files or restarting nginx
 
 var rootCmd = &cobra.Command{
 	Use:   "doorman",
 	Short: "Kubenetes Load Balancer Automation",
 	Long:  `Doorman makes it simple to automatically create and update a Load Balancing server whenever nodes change`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := viper.Unmarshal(&cfg); err != nil {
-			fmt.Println(err)
+		var cfg public.ConfigFile
+
+		cfgBytes, err := ioutil.ReadFile(cfgFile)
+		if err != nil {
+			fmt.Printf("Failed to read config file: %v\n", err)
+			os.Exit(1)
+		}
+		if err := yaml.Unmarshal(cfgBytes, &cfg); err != nil {
+			fmt.Printf("Failed to unmarshal config file: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -48,12 +56,16 @@ var rootCmd = &cobra.Command{
 		ctx := context.Background()
 		stop := make(chan struct{})
 		app := doorman.Doorman{}
+		fmt.Println(cfg)
+		fmt.Println("Loading config...")
 		if err := app.FromConfig(&cfg); err != nil {
-			fmt.Println(err)
+			fmt.Printf("Failed to parse config file: %v\n", err)
 			os.Exit(1)
 		}
+		fmt.Println(app)
+		fmt.Println("Running...")
 		if err := app.Run(ctx, stop); err != nil {
-			fmt.Println(err)
+			fmt.Printf("Stopping with error: %v\n", err)
 			os.Exit(1)
 		}
 	},
@@ -66,39 +78,13 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/doorman.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "/etc/nginx/doorman.yaml", "Path to config file")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		// Search config in home directory with name "doorman" (without extension).
-		viper.AddConfigPath(home)
-		viper.AddConfigPath("/etc/nginx/doorman.yaml")
-		viper.SetConfigType("yaml")
-		viper.SetConfigName("doorman")
-	}
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	}
-
 }

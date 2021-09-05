@@ -9,8 +9,8 @@ import (
 // ConfigFile contains the structure parsed from the YAML config file
 type ConfigFile struct {
 	Kubernetes *KubernetesConfigFile `json:"kubernetes"`
-	Templates  []Template            `json:"templates"`
 	NodePools  []NodePoolConfigFile  `json:"nodePools"`
+	Templates  []Template            `json:"templates"`
 	Health     *HealthConfigFile     `json:"health"`
 	Metrics    *MetricsConfigFile    `json:"metrics"`
 }
@@ -39,11 +39,11 @@ type PortMapping struct {
 
 // NodePoolConfigFile is the node pool section of the config field. For a node to be part of the pool, it must match one or more of the elements of the selector array.
 type NodePoolConfigFile struct {
-	Name          string        `json:"name"`
-	TCPPorts      []PortMapping `json:"tcpPorts"`
-	UDPPorts      []PortMapping `json:"udpPorts"`
-	NodeSelectors []Selector    `json:"nodeSelectors"`
-	AddressType   corev1.NodeAddressType
+	Name          string                 `json:"name"`
+	TCPPorts      []PortMapping          `json:"tcpPorts"`
+	UDPPorts      []PortMapping          `json:"udpPorts"`
+	NodeSelectors []Selector             `json:"nodeSelectors"`
+	AddressType   corev1.NodeAddressType `json:"addressType"`
 }
 
 // FieldSelector describes a kubernetes field selector
