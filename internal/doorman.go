@@ -154,7 +154,7 @@ func (p portPools) remove(port int, address string) (removed bool) {
 }
 
 func (p portPools) render() []PortVars {
-	ports := make([]PortVars, len(p))
+	ports := make([]PortVars, 0, len(p))
 	for port, pool := range p {
 		addressList := make([]string, 0, len(pool.addresses))
 		for address, _ := range pool.addresses {
