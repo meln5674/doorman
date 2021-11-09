@@ -47,6 +47,19 @@ install-systemd: bin/doorman
 	fi
 	systemctl daemon-reload
 	systemctl start doorman
+install-systemd-arm64: bin/doorman-arm64
+	cp bin/doorman-arm64 /usr/local/bin/doorman
+	if [ ! -e /etc/nginx/doorman.yaml ]; then \
+		cp docs/examples/default.yaml /etc/nginx/doorman.yaml ; \
+		chown www-data /etc/nginx/doorman.yaml ; \
+	fi
+	cp deployments/doorman.service /etc/systemd/system/doorman.service
+	ln -sf /etc/systemd/system/doorman.service /etc/systemd/system/multi-user.target.wants/
+	if ! grep '^%www-data ALL=/usr/bin/systemctl restart nginx$$' /etc/sudoers; then \
+		echo '^%www-data ALL=/usr/bin/systemctl restart nginx$$' >> /etc/sudoers; \
+	fi
+	systemctl daemon-reload
+	systemctl start doorman
 uninstall-systemd:
 	systemctl stop doorman
 	systemctl disable doorman
