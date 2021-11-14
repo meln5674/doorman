@@ -12,7 +12,9 @@ nodePools:
     # dest: 8080 
   - src: 443
   # Defines what will be load-balanced to
-  # Can be InternalIP, ExternalIP, or Hostname  
+  # Can be InternalIP, ExternalIP, or Hostname
+  # This refers to the field .status.addresses.*.type within a Node resource.
+  # Make sure your node(s) have the correct type of address configured.
   addressType: InternalIP 
   # Nodes are matched if any of the nodeSelectors elements match. 
   # Elements match if all expressions, labels, and fields match.
