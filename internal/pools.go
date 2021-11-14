@@ -96,6 +96,7 @@ func (p *PoolWatcher) processNewNode(node *corev1.Node, events chan<- NodeEvent)
 			}
 		}
 	}
+	# TODO: If no events are generated, log a message saying so, and to double check the ports and address types
 
 }
 
