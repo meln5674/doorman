@@ -67,35 +67,42 @@ templates:
 
     error_log         logs/error.log info;
     stream {
-        {{- range $pool := .tcp }}
-        upstream doorman_tcp_{{ $pool.srcPort }} {
+        {{- range $pool := .TCPPorts }}
+        {{- if $pool.Addresses }}
+        upstream doorman_tcp_{{ $pool.SourcePort }} {
             least_conn;
-            {{- range $address := $pool.addresses }}
-            server {{ $address }}:{{ $pool.destPort }};
+            {{- range $address := $pool.Addresses }}
+            server {{ $address }}:{{ $pool.DestPort }};
             {{- end }}
         }
 
         server {
-            listen {{ $pool.srcPort }};
-            proxy_pass upstream doorman_tcp_{{ $pool.srcPort }};
+            listen {{ $pool.SourcePort }};
+            proxy_pass doorman_tcp_{{ $pool.SourcePort }};
             proxy_timeout 3s;
             proxy_connect_timeout 1s;
         }
+        {{- else }}
+        # !!! No nodes for for tcp:{{ $pool.SourcePort }}->{{ $pool.DestPort }}
+        {{- end }}
         {{- end }}
         
-        {{- range $pool := .udp }}
-        upstream doorman_udp_{{ $pool.srcPort }} {
+        {{- range $pool := .UDPPorts }}
+        {{- if $pool.Addresses }}
+        upstream doorman_udp_{{ $pool.SourcePort }} {
             least_conn;
-            {{- range $address := $pool.addresses }}
-            server {{ $address }}:{{ $pool.destPort }};
+            {{- range $address := $pool.Addresses }}
+            server {{ $address }}:{{ $pool.DestPort }};
             {{- end }}
         }
         
         server {
-            listen {{ $pool.srcPort }};
-            proxy_pass upstream doorman_tcp_{{ $pool.srcPort }};
+            listen {{ $pool.SourcePort }};
+            proxy_pass doorman_ucp_{{ $pool.SourcePort }};
         }
 
+        {{- else }}
+        # !!! No nodes for udp:{{ $pool.SourcePort }}->{{ $pool.DestPort }}
+        {{- end }}
         {{- end }}
     }
- 
