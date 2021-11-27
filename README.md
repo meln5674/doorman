@@ -21,7 +21,7 @@ make clean all
 # No tests
 make clean bin/doorman # amd64
 make clean bin/doorman-arm64 # arm64 (Raspberry Pi)
-make clean bin/doorman # Windows (Seek help)
+make clean bin/doorman.exe # Windows (Seek help)
 # Integration Tests only
 make integration-test
 ```
