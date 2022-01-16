@@ -25,6 +25,12 @@ test: $(wildcard **/*.go *.go) bin/coverage.html
 bin/doorman: $(wildcard **/*.go *.go)
 	CGO_ENABLED=0 GOOS=linux go build -a -tags '-w -extldflags "-static"' -o bin/doorman main.go
 
+bin/doorman-amd64: $(wildcard **/*.go *.go)
+	CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -a -tags '-w -extldflags "-static"' -o bin/doorman-amd64 main.go
+
+bin/doorman-arm: $(wildcard **/*.go *.go)
+	CGO_ENABLED=0 GOARCH=arm GOOS=linux go build -a -tags '-w -extldflags "-static"' -o bin/doorman-arm main.go
+
 bin/doorman-arm64: $(wildcard **/*.go *.go)
 	CGO_ENABLED=0 GOARCH=arm64 GOOS=linux go build -a -tags '-w -extldflags "-static"' -o bin/doorman-arm64 main.go
 
