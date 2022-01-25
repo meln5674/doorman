@@ -7,9 +7,9 @@ After=nginx.service
 [Service]
 
 Type=simple
-User=www-data
-WorkingDirectory=/etc/nginx/
-ExecStart=/usr/local/bin/doorman
+User=doorman
+WorkingDirectory=/var/lib/doorman
+ExecStart=/usr/local/bin/doorman --config /var/lib/doorman/doorman.yaml
 Restart=on-failure
 
 [Install]
