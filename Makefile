@@ -42,8 +42,8 @@ install-systemd: bin/doorman
 	fi
 	cp deployments/doorman.service /etc/systemd/system/doorman.service
 	ln -sf /etc/systemd/system/doorman.service /etc/systemd/system/multi-user.target.wants/
-	if ! grep '^%www-data ALL=/usr/bin/systemctl restart nginx$$' /etc/sudoers; then \
-		echo '^%www-data ALL=/usr/bin/systemctl restart nginx$$' >> /etc/sudoers; \
+	if ! grep '^%www-data ALL=/usr/bin/systemctl restart nginx' /etc/sudoers; then \
+		echo '%www-data ALL=/usr/bin/systemctl restart nginx' >> /etc/sudoers; \
 	fi
 	systemctl daemon-reload
 	systemctl start doorman
@@ -55,8 +55,8 @@ install-systemd-arm64: bin/doorman-arm64
 	fi
 	cp deployments/doorman.service /etc/systemd/system/doorman.service
 	ln -sf /etc/systemd/system/doorman.service /etc/systemd/system/multi-user.target.wants/
-	if ! grep '^%www-data ALL=/usr/bin/systemctl restart nginx$$' /etc/sudoers; then \
-		echo '^%www-data ALL=/usr/bin/systemctl restart nginx$$' >> /etc/sudoers; \
+	if ! grep '^%www-data ALL=/usr/bin/systemctl restart nginx' /etc/sudoers; then \
+		echo '%www-data ALL=/usr/bin/systemctl restart nginx' >> /etc/sudoers; \
 	fi
 	systemctl daemon-reload
 	systemctl start doorman
