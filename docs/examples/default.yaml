@@ -16,10 +16,17 @@ nodePools:
   addressType: InternalIP 
   # Nodes are matched if any of the nodeSelectors elements match. 
   # Elements match if all expressions, labels, and fields match.
+  # NOTE: k3s and microK8s not provide labels.
+  # Additionally, managed K8s services (EKS, AKS, GKE) also do not label by default.
   nodeSelectors: 
   - labels:
       matchExpressions:
+      # Rancher
       - key: node-role.kubernetes.io/worker
+        operator: "In"
+        values: ["true", "yes", "worker", ""]
+      # Openshift
+      - key: node-role.kubernetes.io/compute
         operator: "In"
         values: ["true", "yes", "worker", ""]
       # matchLabels: # For simple exact matches
