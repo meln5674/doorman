@@ -63,3 +63,8 @@ make uninstall-systemd
 # Docker, requires root/sudo/docker socket access
 make uninstall-docker
 ```
+
+
+TODO:
+* Doesn't work with a default k3s installation.
+* Doesn't seem to update nginx.conf on a arm64 ubuntu server 20.04
