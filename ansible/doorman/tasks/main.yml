@@ -1,0 +1,116 @@
+
+
+- name: Fail on unsupported architecture
+  fail: 'Unsupported architecture: {{ ansible_architecture }}'
+  when: 'ansible_architecture not in ["amd64", "arm", "aarch64"]'
+
+- name: Ensure make present
+  local_action:
+    module: shell
+    cmd: make --version
+
+- name: Ensure golang present
+  local_action:
+    module: shell
+    cmd: go version
+
+- name: Ensure git present
+  local_action:
+    module: shell
+    cmd: git --version
+
+- name: Clone doorman
+  local_action:
+    module: git
+    repo: https://github.com/meln5674/doorman.git
+    dest: '{{ inventory_dir }}/doorman.git'
+    version: '{{ doorman_version | default("master") }}'
+
+- name: Set doorman make target
+  set_fact:
+    doorman_target: '{{ { "amd64": "bin/doorman_amd64", "arm": "bin/doorman-arm", "aarch64": "bin/doorman-arm64" }[ansible_architecture] }}'
+
+- name: Build doorman
+  local_action:
+    module: shell
+    chdir: '{{ inventory_dir }}/doorman.git'
+    cmd: 'make {{ doorman_target }}'
+
+- name: Create doorman user
+  become: true
+  user:
+    name: doorman
+    home: /var/lib/doorman
+
+- name: Copy doorman binary
+  become: true
+  copy:
+    src: '{{ inventory_dir }}/doorman.git/{{ doorman_target }}'
+    dest: '/usr/local/bin/doorman'
+
+- name: Ensure doorman binary ownership and permissions
+  file:
+    path: /usr/local/bin/doorman
+    mode: 0744
+    owner: doorman
+
+- name: Create doorman service unit
+  become: true
+  copy:
+    src: '{{ inventory_dir }}/doorman.git/deployments/doorman.service'
+    dest: '{{ systemd_dir }}/doorman.service'
+
+- name: Copy doorman config template
+  become: true
+  template:
+    src: '{{ inventory_dir }}/{{ doorman_yaml_template }}'
+    dest: '/var/lib/doorman/doorman.yaml'
+    mode: 0744
+    owner: doorman
+  when: 'doorman_yaml_template is defined and doorman_yaml_template'
+
+- name: Copy default doorman config
+  become: true
+  copy:
+    src: '{{ inventory_dir }}/doorman.git/docs/examples/default.yaml'
+    dest: '/var/lib/doorman/doorman.yaml'
+    mode: 0744
+    owner: doorman
+  when: 'doorman_yaml_template is not defined or not doorman_yaml_template'
+
+- name: Create doorman kubeconfig dir
+  become: true
+  file:
+    path: /var/lib/doorman/.kube
+    state: directory
+    mode: 0700
+    owner: doorman
+
+- name: Copy doorman kubeconfig
+  become: true
+  copy:
+    src: '{{ inventory_dir }}/{{ doorman_kubeconfig_path }}'
+    dest: /var/lib/doorman/.kube/config
+    mode: 0700
+    owner: doorman
+
+- name: Allow doorman user to restart nginx
+  become: true
+  copy:
+    content: |
+      %doorman ALL=NOPASSWD: /bin/systemctl restart nginx
+    dest: /etc/sudoers.d/020_doorman-restart-nginx
+
+- name: Give doorman ownership of nginx.conf
+  become: true
+  file:
+    path: /etc/nginx/nginx.conf
+    owner: doorman
+
+- name: Enable and restart doorman
+  become: true
+  systemd:
+    daemon_reload: true
+    name: doorman
+    state: restarted
+    enabled: true

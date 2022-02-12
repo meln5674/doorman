@@ -1,0 +1,42 @@
+- name: Fail on unsupported Distribution
+  fail: 'Unsupported distribution: {{ ansible_distribution }}'
+  when: 'ansible_distribution not in ["Debian", "Ubuntu", "Red Hat Enterprise Linux", "Fedora"]'
+
+- name: Install NGinx
+  become: true
+  apt:
+    name:
+    - nginx
+    - libnginx-mod-stream
+  when: 'ansible_distribution in ["Ubuntu", "Debian"]'
+
+- name: Install EPEL
+  become: true
+  yum:
+    name:
+    - epel-release
+  when: 'ansible_distribution in ["CentOS", "Red Hat Enterprise Linux", "Fedora"]'
+
+- name: Install NGinx
+  become: true
+  yum:
+    name:
+    - nginx
+    - nginx-mod-stream
+  when: 'ansible_distribution in ["CentOS", "Red Hat Enterprise Linux", "Fedora"]'
+
+- name: Copy NGinx config file
+  become: true
+  template:
+    src: '{{ inventory_dir }}/{{ nginx_conf_template_path }}'
+    dest: /etc/nginx.nginx.conf
+  when: 'nginx_conf_template_path is defined'
+
+- name: Enable and restart NGinx
+  become: true
+  systemd:
+    name: nginx
+    state: restarted
+    enabled: true
+
+

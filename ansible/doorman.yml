@@ -1,0 +1,4 @@
+- hosts:
+  - doorman
+  roles:
+  - roles/doorman
